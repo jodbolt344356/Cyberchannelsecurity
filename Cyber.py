@@ -23,6 +23,10 @@ from telethon import TelegramClient
 import asyncio
 from language_manager import language_manager  # Added import statement
 
+# --- Added Imports for Flask Health Check ---
+import threading
+from flask import Flask
+
 # Configure logging with more details
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -30,8 +34,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Use environment variables for tokens and credentials
-BOT_TOKEN = os.getenv("BOT_TOKEN",
-                      "7396319401:AAEPif6ZxkEaJBiTXeEPZpRgYl7XOI4HUto")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "7396319401:AAEPif6ZxkEaJBiTXeEPZpRgYl7XOI4HUto")
 API_ID = int(os.getenv("TELEGRAM_API_ID", "0"))
 API_HASH = os.getenv("TELEGRAM_API_HASH", "")
 
@@ -505,8 +508,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[
         InlineKeyboardButton(
             "➕ Kanala Ekle",
-            url=
-            "https://t.me/CyberChannelSecurity_bot?startchannel=s&admin=manage_video_chats+pin_messages+invite_users"
+            url="https://t.me/CyberChannelSecurity_bot?startchannel=s&admin=manage_video_chats+pin_messages+invite_users"
         ),
         InlineKeyboardButton("📝 Bot hakkında bilgi", callback_data="bot_info")
     ],
@@ -775,8 +777,7 @@ async def track_new_member(user_id: int, username: str, first_name: str,
     member_info = {
         'user_id': user_id,
         'username': username,
-        'first_name': first_name
-        or "Unknown User",  # Fallback if first_name is None
+        'first_name': first_name or "Unknown User",  # Fallback if first_name is None
         'chat_id': chat_id,
         'joined_at': time.time()
     }
@@ -826,9 +827,7 @@ async def get_channel_info(chat_id: int,
                 logger.info("=" * 50)
 
                 # Filter members for this chat and sort by join time (newest first)
-                chat_members = [
-                    m for m in recent_members if m['chat_id'] == chat_id
-                ]
+                chat_members = [m for m in recent_members if m['chat_id'] == chat_id]
                 chat_members.sort(key=lambda x: x['joined_at'], reverse=True)
 
                 for idx, member in enumerate(chat_members, 1):
@@ -843,15 +842,11 @@ async def get_channel_info(chat_id: int,
                     )
 
                 logger.info("\n" + "=" * 50)
-                logger.info(
-                    f"✅ Total Tracked Subscribers: {len(chat_members)}")
+                logger.info(f"✅ Total Tracked Subscribers: {len(chat_members)}")
                 logger.info("=" * 50)
                 if len(chat_members) < member_count:
-                    logger.info(
-                        "\nℹ️ Note: Some earlier subscribers are not shown")
-                    logger.info(
-                        "Only new subscribers who joined after bot activation are tracked"
-                    )
+                    logger.info("\nℹ️ Note: Some earlier subscribers are not shown")
+                    logger.info("Only new subscribers who joined after bot activation are tracked")
             else:
                 logger.info("\n📢 No subscribers tracked yet")
                 logger.info("ℹ️ New subscribers will be tracked as they join")
@@ -880,7 +875,7 @@ async def chat_member_update_handler(update: Update,
     Monitors chat member status changes:
       - Tracks new members joining
       - Automatically grants full rights to a new admin
-      - Demotes anadmin if they remove (kick/ban) a member
+      - Demotes an admin if they remove (kick/ban) a member
     """
     try:
         chat_member_update = update.chat_member
@@ -918,11 +913,8 @@ async def chat_member_update_handler(update: Update,
             )
 
             # Show current tracking stats
-            member_count = len(
-                [m for m in recent_members if m['chat_id'] == chat_id])
-            logger.info(
-                f"📊 Current tracked members for chat {chat_id}: {member_count}"
-            )
+            member_count = len([m for m in recent_members if m['chat_id'] == chat_id])
+            logger.info(f"📊 Current tracked members for chat {chat_id}: {member_count}")
             logger.info("=" * 50)
 
         # Skip handling if bot doesn't have necessary permissions
@@ -934,8 +926,7 @@ async def chat_member_update_handler(update: Update,
             return
 
         # Handle member removal and admin demotion
-        if old_status in ["member", "restricted"
-                          ] and new_status in ["kicked", "banned"]:
+        if old_status in ["member", "restricted"] and new_status in ["kicked", "banned"]:
             try:
                 removed_user_id = chat_member_update.new_chat_member.user.id
                 performing_admin = chat_member_update.from_user
@@ -960,17 +951,14 @@ async def chat_member_update_handler(update: Update,
                         can_invite_users=False,
                     )
 
-                    ## Fix another potential issue with get_chatmember vs get_chat_member
+                    ## Fix another potential issue with get_chat_member vs get_chat_member
                     try:
-                        admin_info = await context.bot.get_chat_member(
-                            chat_id, admin_id)  # Correctmethod name
+                        admin_info = await context.bot.get_chat_member(chat_id, admin_id)
                         admin_name = admin_info.user.first_name
                         notification = f"Admin {admin_name} has been demoted for removing a member."
-                        await context.bot.send_message(chat_id=chat_id,
-                                                       text=notification)
+                        await context.bot.send_message(chat_id=chat_id, text=notification)
                     except Exception as e:
-                        logger.error(
-                            f"Failed to notify about admin demotion: {e}")
+                        logger.error(f"Failed to notify about admin demotion: {e}")
             except Exception as e:
                 logger.error(f"Failed to process member removal: {e}")
 
@@ -984,7 +972,7 @@ async def find_user_by_username_or_id(
     chat_id: Optional[int] = None
 ) -> Tuple[Optional[int], Optional[str], Optional[str]]:
     """
-    Enhanced userresolution with better validation and error handling
+    Enhanced user resolution with better validation and error handling
     Returns (user_id, user_first_name, error_message)
     """
     try:
@@ -999,7 +987,6 @@ async def find_user_by_username_or_id(
             # Handle numeric string
             elif identifier.isdigit():
                 return await resolve_user_id(int(identifier), context, chat_id)
-                # Handle integer ID
         elif isinstance(identifier, int):
             return await resolve_user_id(identifier, context, chat_id)
 
@@ -1018,8 +1005,7 @@ async def lookup_subscriber(username_or_id: str,
     """
     try:
         # If it's a username, ensure it has @ prefix
-        if isinstance(username_or_id, str) and not username_or_id.startswith(
-                '@') and not username_or_id.isdigit():
+        if isinstance(username_or_id, str) and not username_or_id.startswith('@') and not username_or_id.isdigit():
             username_or_id = f"@{username_or_id}"
 
         # Try to get member info
@@ -1042,12 +1028,27 @@ async def lookup_subscriber(username_or_id: str,
         return "An error occurred while looking up the subscriber."
 
 
+# --- Global variables for tracking recent members ---
 recent_members: List[Dict] = []
 MAX_RECENT_MEMBERS = 100
+
+# --- Flask Health Check Setup ---
+flask_app = Flask("HealthCheck")
+
+@flask_app.route("/health")
+def health_check():
+    # You can include any details you want here; for example, number of tracked recent members.
+    return {"status": "operational", "recent_members": len(recent_members)}, 200
+
+def run_flask():
+    flask_app.run(host="0.0.0.0", port=8000)
 
 
 def main():
     try:
+        # Start Flask health check server in a separate daemon thread.
+        threading.Thread(target=run_flask, daemon=True).start()
+
         app = ApplicationBuilder().token(BOT_TOKEN).build()
 
         # Register command handlers
@@ -1055,13 +1056,10 @@ def main():
         app.add_handler(CommandHandler("admin", admin_command))
 
         # Register channel post handler
-        app.add_handler(
-            MessageHandler(filters.ChatType.CHANNEL, channel_post_handler))
+        app.add_handler(MessageHandler(filters.ChatType.CHANNEL, channel_post_handler))
 
         # Register chat member update handler
-        app.add_handler(
-            ChatMemberHandler(chat_member_update_handler,
-                              ChatMemberHandler.CHAT_MEMBER))
+        app.add_handler(ChatMemberHandler(chat_member_update_handler, ChatMemberHandler.CHAT_MEMBER))
 
         # Register callback query handler for inline buttons
         app.add_handler(CallbackQueryHandler(button_handler))
