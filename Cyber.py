@@ -35,8 +35,8 @@ logger = logging.getLogger(__name__)
 
 # Use environment variables for tokens and credentials
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7396319401:AAEPif6ZxkEaJBiTXeEPZpRgYl7XOI4HUto")
-API_ID = int(os.getenv("TELEGRAM_API_ID", "0"))
-API_HASH = os.getenv("TELEGRAM_API_HASH", "")
+API_ID = 21547048
+API_HASH = "aaca55f2ee5af88fbe9f589393a7b9b6"
 
 # Initialize Telethon client
 telethon_client = None
