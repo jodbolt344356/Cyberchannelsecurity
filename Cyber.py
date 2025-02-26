@@ -493,7 +493,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     welcome_text = (f"👋🏻 Merhaba @{username}\n"
                     f"—{first_name}  None ({user_id})\n\n"
-                    "@CyberChannelSecurity_bot Kanalınızı\n"
+                    "@CyberChanneISecurity_bot Kanalınızı\n"
                     "Güvenle Korur Ve İşlerinizi Kolaylaştırır.\n\n"
                     "👉🏻 Çalışmama izin vermek için kanalınızda\n"
                     "tüm yetkileri veriniz.\n\n"
