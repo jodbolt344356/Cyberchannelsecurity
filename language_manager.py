@@ -3,7 +3,7 @@ import importlib
 
 class LanguageManager:
     def __init__(self):
-        self.current_language = 'tr'  # Default language is Turkish
+        self.current_language = 'en'  # Default language is Turkish
         self.languages = {
             'tr': self._load_language('tr'),
             'en': self._load_language('en')
