@@ -1,6 +1,4 @@
 import logging
-import datetime
-import asyncio
 from typing import Optional, Tuple, Union, Dict, List
 from telegram import (
     Update,
@@ -17,14 +15,14 @@ from telegram.ext import (
     CallbackQueryHandler,
     MessageHandler,
     filters,
-    Job,
-    Defaults,
 )
 import re
 import os
 import time
 from telethon import TelegramClient
 import asyncio
+from language_manager import language_manager  # Added import statement
+
 # --- Added Imports for Flask Health Check ---
 import threading
 from flask import Flask
@@ -754,119 +752,8 @@ async def channel_post_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             )
             await asyncio.sleep(3)
             await error_msg.delete()
-            
-async def delete_ad_messages(context: ContextTypes.DEFAULT_TYPE):
-    """Callback to delete ad messages and clear ad data"""
-    job = context.job
-    ad_data = job.data
-    for cid, mid in ad_data['messages'].items():
-        try:
-            await context.bot.delete_message(cid, mid)
-        except Exception as e:
-            logger.error(f"Failed to delete message {mid} in {cid}: {e}")
-    context.bot_data.pop('ad', None)
 
-async def setad_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Usage: /setad <hours> <minutes> <ad text>"""
-    if len(context.args) < 3:
-        return await update.message.reply_text("Usage: /setad <hours> <minutes> <ad text>")
-    try:
-        hours = int(context.args[0])
-        minutes = int(context.args[1])
-    except ValueError:
-        return await update.message.reply_text("⏤ Please give numeric hours and minutes.")
-    ad_text = " ".join(context.args[2:])
-    timeout = hours * 3600 + minutes * 60
 
-    channels = context.bot_data.get("channels", set())
-    if not channels:
-        return await update.message.reply_text("I’m not in any channels to advertise to.")
-
-    # 1) grab and store your current bot name
-    me = await context.bot.get_me()
-    original_name = me.first_name
-
-    # 2) switch it to "O"
-    #    (requires Bot API ≥6.4 / PTB ≥20.3; otherwise use bot.request('setMyName', {...}))
-    await context.bot.set_my_name(name="O")
-
-    # 3) send your ad to every channel
-    sent = {}
-    for chat_id in channels:
-        try:
-            msg = await context.bot.send_message(chat_id, ad_text)
-            sent[chat_id] = msg.message_id
-            await asyncio.sleep(2)  # delay to prevent flood (adjust if needed)
-        except Exception as e:
-            logger.error(f"Failed to send ad to {chat_id}: {e}")
-            continue
-
-    if not sent:
-        # nothing went out – put the name back and abort
-        await context.bot.set_my_name(name=original_name)
-        return await update.message.reply_text("Failed to send ad to any channel.")
-
-    # 4) restore the bot’s name
-    await context.bot.set_my_name(name=original_name)
-
-    # 5) schedule deletion and reply as before
-    delete_at = datetime.datetime.now() + datetime.timedelta(seconds=timeout)
-    job = context.application.job_queue.run_once(
-        callback=delete_ad_messages,
-        when=timeout,
-        data={'messages': sent},
-        name=f"delete_ad_{datetime.datetime.now().timestamp()}"
-    )
-    context.bot_data['ad'] = {
-        'text': ad_text,
-        'timeout_sec': timeout,
-        'messages': sent,
-        'job': job,
-        'delete_at': delete_at
-    }
-
-    await update.message.reply_text(
-        f"✅ Ad sent to {len(sent)} channels.\n"
-        f"Will be deleted at {delete_at:%Y-%m-%d %H:%M:%S}."
-    )
-
-async def checkad_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/checkad — Show the current ad and deletion time."""
-    ad = context.bot_data.get('ad')
-    if not ad:
-        return await update.message.reply_text("No active ad.")
-    
-    remaining = (ad['delete_at'] - datetime.datetime.now()).total_seconds()
-    if remaining < 0:
-        remaining = 0
-    
-    hrs, rem = divmod(remaining, 3600)
-    mins, secs = divmod(rem, 60)
-    await update.message.reply_text(
-        f"Current ad:\n\n{ad['text']}\n\n"
-        f"Deletes in {int(hrs)}h {int(mins)}m {int(secs)}s."
-    )
-
-async def delad_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/delad — Delete the active ad immediately."""
-    ad = context.bot_data.pop('ad', None)
-    if not ad:
-        return await update.message.reply_text("No active ad to delete.")
-    
-    # Cancel the scheduled deletion job
-    job: Job = ad.get('job')
-    if job:
-        job.schedule_removal()
-    
-    # Delete all ad messages
-    for cid, mid in ad['messages'].items():
-        try:
-            await context.bot.delete_message(cid, mid)
-        except Exception as e:
-            logger.error(f"Failed to delete message in {cid}: {e}")
-    
-    await update.message.reply_text("✅ Ad messages deleted and job cancelled.")
-    
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Log errors caused by updates."""
     logger.error(f"Update {update} caused error: {context.error}")
@@ -1155,50 +1042,36 @@ def health_check():
 
 def run_flask():
     flask_app.run(host="0.0.0.0", port=8000)
-    
-async def my_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Track chats where the bot is added or removed."""
-    result = update.my_chat_member
-    chat = result.chat
-    new_status = result.new_chat_member.status
 
-    # Make sure bot_data has the 'channels' set
-    channels = context.bot_data.setdefault("channels", set())
-
-    if new_status in ("member", "administrator"):
-        channels.add(chat.id)
-    else:
-        channels.discard(chat.id)
-       
-async def track_channel_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Track channels automatically when any message is posted in them."""
-    if update.channel_post:
-        chat_id = update.channel_post.chat_id
-        channels = context.bot_data.setdefault("channels", set())
-        if chat_id not in channels:
-            channels.add(chat_id)
-            print(f"Tracked new channel: {chat_id}")
 
 def main():
     try:
+        # Start Flask health check server in a separate daemon thread.
         threading.Thread(target=run_flask, daemon=True).start()
-        app = ApplicationBuilder().token(BOT_TOKEN).defaults(Defaults()).build()
+
+        app = ApplicationBuilder().token(BOT_TOKEN).build()
 
         # Register command handlers
-        app.add_handler(MessageHandler(filters.ChatType.CHANNEL, track_channel_message))
-
         app.add_handler(CommandHandler("start", start_command))
         app.add_handler(CommandHandler("admin", admin_command))
-        app.add_handler(CommandHandler("setad", setad_command))       # <-- These should line up
-        app.add_handler(CommandHandler("checkad", checkad_command))   # <-- no extra indent
-        app.add_handler(CommandHandler("delad", delad_command))
-        app.add_handler(ChatMemberHandler(my_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
 
-        # Run the bot
+        # Register channel post handler
+        app.add_handler(MessageHandler(filters.ChatType.CHANNEL, channel_post_handler))
+
+        # Register chat member update handler
+        app.add_handler(ChatMemberHandler(chat_member_update_handler, ChatMemberHandler.CHAT_MEMBER))
+
+        # Register callback query handler for inline buttons
+        app.add_handler(CallbackQueryHandler(button_handler))
+
+        # Register error handler
+        app.add_error_handler(error_handler)
+
+        logger.info("Bot is running... Press Ctrl+C to stop.")
         app.run_polling()
-
     except Exception as e:
         logger.critical(f"Failed to start bot: {e}")
+
 
 if __name__ == "__main__":
     main()
