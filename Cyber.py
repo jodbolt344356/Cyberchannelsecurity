@@ -1,4 +1,5 @@
 import logging
+logger = logging.getLogger(__name__)
 from typing import Optional, Tuple, Union, Dict, List
 from telegram import (
     Update,
@@ -871,59 +872,78 @@ async def is_bot_admin(chat_id, context):
         return False
 
 async def bot_self_update(update: ChatMemberUpdated, context: ContextTypes.DEFAULT_TYPE):
-    """Bot’s own admin status or permissions changed."""
-    mu = update.my_chat_member
+    """When the bot’s own admin status or permissions change."""
+    mu   = update.my_chat_member
     chat = mu.chat
-    old = mu.old_chat_member
-    new = mu.new_chat_member
+    old  = mu.old_chat_member
+    new  = mu.new_chat_member
 
-    # If bot is not an admin anymore → leave
+    # If we’re no longer admin, just bail
     if not isinstance(new, ChatMemberAdministrator):
+        logger.info(f"[bot_self_update] Not an admin anymore in {chat.id}, leaving.")
         await context.bot.leave_chat(chat.id)
         return
 
-    # List of permissions we want
-    required_perms = [
-        "can_change_info",
-        "can_delete_messages",
-        "can_invite_users",
-        "can_manage_chat",
-        "can_pin_messages",
-    ]
+    # PICK the rights that actually apply to this chat type
+    if chat.type == 'channel':
+        perms_to_check = [
+            "can_post_messages",
+            "can_edit_messages",
+            "can_delete_messages",
+            "can_invite_users",
+            "can_pin_messages",
+        ]
+    else:
+        perms_to_check = [
+            "can_change_info",
+            "can_delete_messages",
+            "can_invite_users",
+            "can_manage_chat",
+            "can_pin_messages",
+        ]
 
-    # Check which ones are missing
-    missing = [perm for perm in required_perms if not getattr(new, perm, False)]
+    # Figure out which of those are now False
+    missing = [p for p in perms_to_check if getattr(new, p, False) is False]
+    logger.info(f"[bot_self_update] In chat {chat.id}, missing perms: {missing}")
 
-    # Case 1: Bot was added with missing permissions → leave
+    # ——— Case A: Initial ADD (old wasn’t an admin) ———
     if not isinstance(old, ChatMemberAdministrator):
+        # If ANY are missing on add, leave; else, stay
         if missing:
+            logger.info(f"[bot_self_update] Added with missing perms → leaving {chat.id}")
             await context.bot.leave_chat(chat.id)
+        else:
+            logger.info(f"[bot_self_update] Added with full perms → staying in {chat.id}")
         return
 
-    # Case 2: Bot had full permissions before but now lost some
-    was_full_before = all(getattr(old, p, False) for p in required_perms)
+    # ——— Case B: LATER revocation (old *was* admin) ———
+    was_full_before = all(getattr(old, p, False) for p in perms_to_check)
     if was_full_before and missing:
-        # Demote all other admins (except owner)
+        logger.info(f"[bot_self_update] Lost perms mid-chat (was full before) → demoting & leaving {chat.id}")
         admins = await context.bot.get_chat_administrators(chat.id)
-        for admin in admins:
-            if isinstance(admin, ChatMemberOwner):
+        for a in admins:
+            if isinstance(a, ChatMemberOwner):
                 continue
             try:
                 await context.bot.promote_chat_member(
                     chat_id=chat.id,
-                    user_id=admin.user.id,
+                    user_id=a.user.id,
+                    # strip *all* their perms
                     can_change_info=False,
                     can_delete_messages=False,
                     can_invite_users=False,
                     can_manage_chat=False,
                     can_pin_messages=False,
                     can_promote_members=False,
+                    can_manage_video_chats=False,
+                    can_post_messages=False,
+                    can_edit_messages=False,
                 )
-            except:
+            except Exception:
                 pass
-
-        # Then leave
         await context.bot.leave_chat(chat.id)
+    else:
+        logger.info(f"[bot_self_update] No action needed (was_full_before={was_full_before}, missing={missing}).")
 
 async def chat_member_update_handler(update: Update,
                                      context: ContextTypes.DEFAULT_TYPE):
