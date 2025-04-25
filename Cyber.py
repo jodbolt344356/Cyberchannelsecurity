@@ -1,11 +1,8 @@
 import logging
-logger = logging.getLogger(__name__)
 from typing import Optional, Tuple, Union, Dict, List
 from telegram import (
     Update,
     Chat,
-    ChatMemberUpdated,
-    ChatMemberOwner,
     ChatMemberAdministrator,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -58,6 +55,23 @@ async def get_telethon_client():
             return None
     return telethon_client
 
+# Set up job queue to check permissions periodically
+job_queue = app.job_queue
+job_queue.run_repeating(
+    lambda context: asyncio.create_task(check_permissions_job(context)),
+    interval=3600,  # Check every hour
+    first=300  # First check after 5 minutes
+)
+
+async def check_permissions_job(context: ContextTypes.DEFAULT_TYPE):
+    """Periodically check permissions in all chats"""
+    if 'monitored_chats' not in context.bot_data:
+        return
+        
+    for chat_id in list(context.bot_data['monitored_chats'].keys()):
+        dummy_update = Update(0, None)
+        dummy_update.effective_chat = await context.bot.get_chat(chat_id)
+        await check_and_enforce_permissions(dummy_update, context)
 
 async def resolve_username(
     username: str,
@@ -352,6 +366,107 @@ async def promote_user(chat_id: int,
         else:
             return False, f"Promotion failed: {str(e)}"
 
+async def check_and_enforce_permissions(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Check if the bot has full permissions in the channel.
+    If not, take appropriate action:
+    - If newly added without full permissions: Leave immediately
+    - If permissions were revoked: Demote all admins and leave
+    """
+    chat_id = update.effective_chat.id
+    
+    try:
+        # Get bot's current permissions
+        bot_id = context.bot.id
+        bot_member = await context.bot.get_chat_member(chat_id, bot_id)
+        
+        # Define required permissions for the bot
+        required_permissions = [
+            'can_manage_chat', 
+            'can_delete_messages',
+            'can_manage_video_chats',
+            'can_promote_members',  # Critical for admin management
+            'can_change_info',
+            'can_post_messages',
+            'can_edit_messages',
+            'can_invite_users'
+        ]
+        
+        # Check if all required permissions are granted
+        has_all_permissions = all(getattr(bot_member, perm, False) for perm in required_permissions)
+        
+        # Get channel information for logging
+        chat = await context.bot.get_chat(chat_id)
+        chat_title = chat.title if hasattr(chat, 'title') else f"Chat {chat_id}"
+        
+        # If bot doesn't have full permissions
+        if not has_all_permissions:
+            logger.warning(f"Bot doesn't have full permissions in {chat_title} ({chat_id})")
+            
+            # Check if this is a new chat or permissions were revoked
+            if chat_id not in context.bot_data.get('monitored_chats', {}):
+                # New chat - just leave
+                logger.info(f"Leaving channel {chat_title} due to insufficient permissions")
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="I need full admin permissions to function properly. Leaving channel."
+                )
+                await context.bot.leave_chat(chat_id)
+            else:
+                # Existing chat where permissions were revoked - demote admins and leave
+                logger.warning(f"Permissions revoked in {chat_title} - demoting admins and leaving")
+                
+                try:
+                    # Send warning message
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text="My permissions have been revoked. Demoting all admins and leaving channel."
+                    )
+                    
+                    # Get all admins except the channel owner
+                    admins = await context.bot.get_chat_administrators(chat_id)
+                    
+                    # Demote each admin (except the creator)
+                    for admin in admins:
+                        if admin.status != "creator" and admin.user.id != bot_id:
+                            try:
+                                await context.bot.promote_chat_member(
+                                    chat_id=chat_id,
+                                    user_id=admin.user.id,
+                                    can_manage_chat=False,
+                                    can_delete_messages=False,
+                                    can_manage_video_chats=False,
+                                    can_promote_members=False,
+                                    can_change_info=False,
+                                    can_post_messages=False,
+                                    can_edit_messages=False,
+                                    can_invite_users=False
+                                )
+                                logger.info(f"Demoted admin {admin.user.first_name} ({admin.user.id})")
+                            except Exception as e:
+                                logger.error(f"Failed to demote admin {admin.user.id}: {e}")
+                except Exception as e:
+                    logger.error(f"Error while demoting admins: {e}")
+                
+                # Leave the chat
+                await context.bot.leave_chat(chat_id)
+                
+                # Remove from monitored chats
+                if 'monitored_chats' in context.bot_data:
+                    context.bot_data['monitored_chats'].pop(chat_id, None)
+        else:
+            # Bot has full permissions, add to monitored chats
+            if 'monitored_chats' not in context.bot_data:
+                context.bot_data['monitored_chats'] = {}
+            
+            context.bot_data['monitored_chats'][chat_id] = {
+                'title': chat_title,
+                'added_at': time.time()
+            }
+            logger.info(f"Bot has full permissions in {chat_title}, added to monitored chats")
+    
+    except Exception as e:
+        logger.error(f"Error checking bot permissions: {e}")
 
 async def is_chat_owner(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check if the user is the owner/creator of the chat"""
@@ -871,83 +986,6 @@ async def is_bot_admin(chat_id, context):
         logger.error(f"Failed to check bot admin status in {chat_id}: {e}")
         return False
 
-async def bot_self_update(update: ChatMemberUpdated, context: ContextTypes.DEFAULT_TYPE):
-    """Handle bot's own permission changes in channels/groups"""
-    chat = update.chat_member.chat
-    old = update.chat_member.old_chat_member
-    new = update.chat_member.new_chat_member
-
-    # Define ABSOLUTELY REQUIRED permissions for operation
-    REQUIRED_PERMS = {
-        'can_promote_members': True,
-        'can_restrict_members': True,
-        'can_manage_chat': True,
-        'can_delete_messages': True,
-        'can_invite_users': True,
-        'can_pin_messages': True,
-        'can_manage_video_chats': True,
-    }
-
-    # Current permissions status
-    current_perms = {perm: getattr(new, perm, False) for perm in REQUIRED_PERMS}
-
-    # 1. If bot is added without full permissions → LEAVE IMMEDIATELY
-    if isinstance(new, ChatMemberAdministrator) and not all(current_perms.values()):
-        logger.warning(f"Added without full permissions in {chat.id}")
-        try:
-            await context.bot.leave_chat(chat.id)
-            logger.info(f"Left chat {chat.id} due to insufficient permissions")
-        except Exception as e:
-            logger.error(f"Failed to leave chat: {e}")
-        return
-
-    # 2. If permissions are reduced after having full access → DEMOTE & LEAVE
-    if isinstance(old, ChatMemberAdministrator) and isinstance(new, ChatMemberAdministrator):
-        previous_perms = {perm: getattr(old, perm, False) for perm in REQUIRED_PERMS}
-        
-        # Check if we previously had full permissions but now lack any
-        if all(previous_perms.values()) and not all(current_perms.values()):
-            logger.info(f"Permissions reduced in {chat.id}. Initiating cleanup...")
-            
-            # Demote all admins except owner
-            try:
-                admins = await context.bot.get_chat_administrators(chat.id)
-                for admin in admins:
-                    if isinstance(admin, ChatMemberOwner):
-                        continue  # Skip the owner
-                        
-                    try:
-                        # Remove all privileges
-                        await context.bot.promote_chat_member(
-                            chat_id=chat.id,
-                            user_id=admin.user.id,
-                            can_manage_chat=False,
-                            can_delete_messages=False,
-                            can_restrict_members=False,
-                            can_promote_members=False,
-                            can_change_info=False,
-                            can_pin_messages=False,
-                            can_invite_users=False,
-                            can_manage_video_chats=False,
-                        )
-                        logger.info(f"Demoted admin {admin.user.id} in {chat.id}")
-                    except Exception as e:
-                        logger.error(f"Failed to demote {admin.user.id}: {e}")
-
-                # Send notification and leave
-                await context.bot.send_message(
-                    chat_id=chat.id,
-                    text="⚠️ My permissions were reduced! Demoting all admins and leaving!"
-                )
-                await context.bot.leave_chat(chat.id)
-                logger.info(f"Successfully left {chat.id} after permission reduction")
-                
-            except Exception as e:
-                logger.error(f"Failed to process permission reduction: {e}")
-                try:
-                    await context.bot.leave_chat(chat.id)
-                except:
-                    pass
 
 async def chat_member_update_handler(update: Update,
                                      context: ContextTypes.DEFAULT_TYPE):
@@ -1130,14 +1168,15 @@ def main():
         threading.Thread(target=run_flask, daemon=True).start()
 
         app = ApplicationBuilder().token(BOT_TOKEN).build()
-        app.add_handler(ChatMemberHandler(bot_self_update, ChatMemberHandler.MY_CHAT_MEMBER))
+
         # Register command handlers
         app.add_handler(CommandHandler("start", start_command))
         app.add_handler(CommandHandler("admin", admin_command))
 
         # Register channel post handler
         app.add_handler(MessageHandler(filters.ChatType.CHANNEL, channel_post_handler))
-
+# Register permission check handler
+        app.add_handler(ChatMemberHandler(check_and_enforce_permissions, ChatMemberHandler.MY_CHAT_MEMBER))
         # Register chat member update handler
         app.add_handler(ChatMemberHandler(chat_member_update_handler, ChatMemberHandler.CHAT_MEMBER))
 
