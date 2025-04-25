@@ -3,6 +3,8 @@ from typing import Optional, Tuple, Union, Dict, List
 from telegram import (
     Update,
     Chat,
+    ChatMemberUpdated,
+    ChatMemberOwner,
     ChatMemberAdministrator,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -868,6 +870,67 @@ async def is_bot_admin(chat_id, context):
         logger.error(f"Failed to check bot admin status in {chat_id}: {e}")
         return False
 
+async def bot_self_update(update: ChatMemberUpdated, context: ContextTypes.DEFAULT_TYPE):
+    """When bot’s own permissions/status change in a chat."""
+    chat = update.chat_member.chat
+    old = update.chat_member.old_chat_member
+    new = update.chat_member.new_chat_member
+
+    # If we are no longer admin, just leave
+    if not isinstance(new, ChatMemberAdministrator):
+        try:
+            await context.bot.leave_chat(chat.id)
+        except:
+            pass
+        return
+
+    # Permissions bot needs to work fully
+    required_perms = [
+        "can_change_info",
+        "can_delete_messages",
+        "can_invite_users",
+        "can_manage_chat",
+        "can_manage_video_chats",
+        "can_pin_messages",
+        "can_promote_members",
+    ]
+
+    # Check missing permissions
+    missing = [p for p in required_perms if not getattr(new, p, False)]
+
+    if not missing:
+        return  # All good
+
+    # Check if bot used to have full perms earlier
+    was_full_before = isinstance(old, ChatMemberAdministrator) and all(
+        getattr(old, p, False) for p in required_perms)
+
+    if not was_full_before:
+        # Added with missing permissions → leave
+        await context.bot.leave_chat(chat.id)
+        return
+
+    # Had full permissions, now reduced → demote everyone else & leave
+    admins = await context.bot.get_chat_administrators(chat.id)
+    for admin in admins:
+        if isinstance(admin, ChatMemberOwner):
+            continue
+        try:
+            await context.bot.promote_chat_member(
+                chat_id=chat.id,
+                user_id=admin.user.id,
+                can_change_info=False,
+                can_delete_messages=False,
+                can_invite_users=False,
+                can_manage_chat=False,
+                can_manage_video_chats=False,
+                can_pin_messages=False,
+                can_promote_members=False,
+            )
+        except:
+            pass
+
+    await context.bot.leave_chat(chat.id)
 
 async def chat_member_update_handler(update: Update,
                                      context: ContextTypes.DEFAULT_TYPE):
@@ -1050,7 +1113,7 @@ def main():
         threading.Thread(target=run_flask, daemon=True).start()
 
         app = ApplicationBuilder().token(BOT_TOKEN).build()
-
+        app.add_handler(ChatMemberHandler(bot_self_update, ChatMemberHandler.MY_CHAT_MEMBER))
         # Register command handlers
         app.add_handler(CommandHandler("start", start_command))
         app.add_handler(CommandHandler("admin", admin_command))
