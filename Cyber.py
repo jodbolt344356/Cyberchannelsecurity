@@ -55,23 +55,6 @@ async def get_telethon_client():
             return None
     return telethon_client
 
-# Set up job queue to check permissions periodically
-job_queue = app.job_queue
-job_queue.run_repeating(
-    lambda context: asyncio.create_task(check_permissions_job(context)),
-    interval=3600,  # Check every hour
-    first=300  # First check after 5 minutes
-)
-
-async def check_permissions_job(context: ContextTypes.DEFAULT_TYPE):
-    """Periodically check permissions in all chats"""
-    if 'monitored_chats' not in context.bot_data:
-        return
-        
-    for chat_id in list(context.bot_data['monitored_chats'].keys()):
-        dummy_update = Update(0, None)
-        dummy_update.effective_chat = await context.bot.get_chat(chat_id)
-        await check_and_enforce_permissions(dummy_update, context)
 
 async def resolve_username(
     username: str,
@@ -467,7 +450,7 @@ async def check_and_enforce_permissions(update: Update, context: ContextTypes.DE
     
     except Exception as e:
         logger.error(f"Error checking bot permissions: {e}")
-
+        
 async def is_chat_owner(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check if the user is the owner/creator of the chat"""
     try:
@@ -1175,22 +1158,50 @@ def main():
 
         # Register channel post handler
         app.add_handler(MessageHandler(filters.ChatType.CHANNEL, channel_post_handler))
-# Register permission check handler
-        app.add_handler(ChatMemberHandler(check_and_enforce_permissions, ChatMemberHandler.MY_CHAT_MEMBER))
+
         # Register chat member update handler
         app.add_handler(ChatMemberHandler(chat_member_update_handler, ChatMemberHandler.CHAT_MEMBER))
+        
+        # Add handler to monitor bot's own member status
+        app.add_handler(ChatMemberHandler(check_and_enforce_permissions, ChatMemberHandler.MY_CHAT_MEMBER))
 
         # Register callback query handler for inline buttons
         app.add_handler(CallbackQueryHandler(button_handler))
 
         # Register error handler
         app.add_error_handler(error_handler)
+        
+        # Set up periodic check for permissions
+        job_queue = app.job_queue
+        job_queue.run_repeating(
+            lambda context: asyncio.create_task(periodic_permission_check(context)),
+            interval=3600,  # Check every hour
+            first=300  # First check after 5 minutes
+        )
 
         logger.info("Bot is running... Press Ctrl+C to stop.")
         app.run_polling()
     except Exception as e:
         logger.critical(f"Failed to start bot: {e}")
 
-
-if __name__ == "__main__":
-    main()
+async def periodic_permission_check(context: ContextTypes.DEFAULT_TYPE):
+    """Periodically check permissions in all monitored chats"""
+    logger.info("Running periodic permission check")
+    if 'monitored_chats' not in context.bot_data:
+        return
+        
+    for chat_id in list(context.bot_data['monitored_chats'].keys()):
+        try:
+            # Create a dummy update for the check_and_enforce_permissions function
+            class DummyChat:
+                def __init__(self, chat_id):
+                    self.id = chat_id
+                    
+            class DummyUpdate:
+                def __init__(self, chat_id):
+                    self.effective_chat = DummyChat(chat_id)
+                    
+            dummy_update = DummyUpdate(chat_id)
+            await check_and_enforce_permissions(dummy_update, context)
+        except Exception as e:
+            logger.error(f"Error checking permissions for chat {chat_id}: {e}")
