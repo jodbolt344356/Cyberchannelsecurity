@@ -870,65 +870,60 @@ async def is_bot_admin(chat_id, context):
         logger.error(f"Failed to check bot admin status in {chat_id}: {e}")
         return False
 
-async def bot_self_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """When the bot’s own permissions/status change in a chat."""
-    member_update = update.my_chat_member
-    chat          = member_update.chat
-    old           = member_update.old_chat_member
-    new           = member_update.new_chat_member
+async def bot_self_update(update: ChatMemberUpdated, context: ContextTypes.DEFAULT_TYPE):
+    """Bot’s own admin status or permissions changed."""
+    mu = update.my_chat_member
+    chat = mu.chat
+    old = mu.old_chat_member
+    new = mu.new_chat_member
 
-    # If we are no longer admin, just leave
+    # If bot is not an admin anymore → leave
     if not isinstance(new, ChatMemberAdministrator):
-        try:
-            await context.bot.leave_chat(chat.id)
-        except:
-            pass
+        await context.bot.leave_chat(chat.id)
         return
 
+    # List of permissions we want
     required_perms = [
         "can_change_info",
         "can_delete_messages",
         "can_invite_users",
         "can_manage_chat",
-        "can_manage_video_chats",
         "can_pin_messages",
-        "can_promote_members",
     ]
-    missing = [p for p in required_perms if not getattr(new, p, False)]
-    if not missing:
-        return  # still full-perm
 
-    was_full_before = (
-        isinstance(old, ChatMemberAdministrator)
-        and all(getattr(old, p, False) for p in required_perms)
-    )
+    # Check which ones are missing
+    missing = [perm for perm in required_perms if not getattr(new, perm, False)]
 
-    if not was_full_before:
-        # added with missing perms → leave
-        await context.bot.leave_chat(chat.id)
+    # Case 1: Bot was added with missing permissions → leave
+    if not isinstance(old, ChatMemberAdministrator):
+        if missing:
+            await context.bot.leave_chat(chat.id)
         return
 
-    # had full perms, then got stripped → demote everyone else & leave
-    admins = await context.bot.get_chat_administrators(chat.id)
-    for admin in admins:
-        if isinstance(admin, ChatMemberOwner):
-            continue
-        try:
-            await context.bot.promote_chat_member(
-                chat.id,
-                admin.user.id,
-                can_change_info=False,
-                can_delete_messages=False,
-                can_invite_users=False,
-                can_manage_chat=False,
-                can_manage_video_chats=False,
-                can_pin_messages=False,
-                can_promote_members=False,
-            )
-        except:
-            pass
+    # Case 2: Bot had full permissions before but now lost some
+    was_full_before = all(getattr(old, p, False) for p in required_perms)
+    if was_full_before and missing:
+        # Demote all other admins (except owner)
+        admins = await context.bot.get_chat_administrators(chat.id)
+        for admin in admins:
+            if isinstance(admin, ChatMemberOwner):
+                continue
+            try:
+                await context.bot.promote_chat_member(
+                    chat_id=chat.id,
+                    user_id=admin.user.id,
+                    can_change_info=False,
+                    can_delete_messages=False,
+                    can_invite_users=False,
+                    can_manage_chat=False,
+                    can_pin_messages=False,
+                    can_promote_members=False,
+                )
+            except:
+                pass
 
-    await context.bot.leave_chat(chat.id)
+        # Then leave
+        await context.bot.leave_chat(chat.id)
 
 async def chat_member_update_handler(update: Update,
                                      context: ContextTypes.DEFAULT_TYPE):
