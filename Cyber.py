@@ -349,108 +349,7 @@ async def promote_user(chat_id: int,
         else:
             return False, f"Promotion failed: {str(e)}"
 
-async def check_and_enforce_permissions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Check if the bot has full permissions in the channel.
-    If not, take appropriate action:
-    - If newly added without full permissions: Leave immediately
-    - If permissions were revoked: Demote all admins and leave
-    """
-    chat_id = update.effective_chat.id
-    
-    try:
-        # Get bot's current permissions
-        bot_id = context.bot.id
-        bot_member = await context.bot.get_chat_member(chat_id, bot_id)
-        
-        # Define required permissions for the bot
-        required_permissions = [
-            'can_manage_chat', 
-            'can_delete_messages',
-            'can_manage_video_chats',
-            'can_promote_members',  # Critical for admin management
-            'can_change_info',
-            'can_post_messages',
-            'can_edit_messages',
-            'can_invite_users'
-        ]
-        
-        # Check if all required permissions are granted
-        has_all_permissions = all(getattr(bot_member, perm, False) for perm in required_permissions)
-        
-        # Get channel information for logging
-        chat = await context.bot.get_chat(chat_id)
-        chat_title = chat.title if hasattr(chat, 'title') else f"Chat {chat_id}"
-        
-        # If bot doesn't have full permissions
-        if not has_all_permissions:
-            logger.warning(f"Bot doesn't have full permissions in {chat_title} ({chat_id})")
-            
-            # Check if this is a new chat or permissions were revoked
-            if chat_id not in context.bot_data.get('monitored_chats', {}):
-                # New chat - just leave
-                logger.info(f"Leaving channel {chat_title} due to insufficient permissions")
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text="I need full admin permissions to function properly. Leaving channel."
-                )
-                await context.bot.leave_chat(chat_id)
-            else:
-                # Existing chat where permissions were revoked - demote admins and leave
-                logger.warning(f"Permissions revoked in {chat_title} - demoting admins and leaving")
-                
-                try:
-                    # Send warning message
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text="My permissions have been revoked. Demoting all admins and leaving channel."
-                    )
-                    
-                    # Get all admins except the channel owner
-                    admins = await context.bot.get_chat_administrators(chat_id)
-                    
-                    # Demote each admin (except the creator)
-                    for admin in admins:
-                        if admin.status != "creator" and admin.user.id != bot_id:
-                            try:
-                                await context.bot.promote_chat_member(
-                                    chat_id=chat_id,
-                                    user_id=admin.user.id,
-                                    can_manage_chat=False,
-                                    can_delete_messages=False,
-                                    can_manage_video_chats=False,
-                                    can_promote_members=False,
-                                    can_change_info=False,
-                                    can_post_messages=False,
-                                    can_edit_messages=False,
-                                    can_invite_users=False
-                                )
-                                logger.info(f"Demoted admin {admin.user.first_name} ({admin.user.id})")
-                            except Exception as e:
-                                logger.error(f"Failed to demote admin {admin.user.id}: {e}")
-                except Exception as e:
-                    logger.error(f"Error while demoting admins: {e}")
-                
-                # Leave the chat
-                await context.bot.leave_chat(chat_id)
-                
-                # Remove from monitored chats
-                if 'monitored_chats' in context.bot_data:
-                    context.bot_data['monitored_chats'].pop(chat_id, None)
-        else:
-            # Bot has full permissions, add to monitored chats
-            if 'monitored_chats' not in context.bot_data:
-                context.bot_data['monitored_chats'] = {}
-            
-            context.bot_data['monitored_chats'][chat_id] = {
-                'title': chat_title,
-                'added_at': time.time()
-            }
-            logger.info(f"Bot has full permissions in {chat_title}, added to monitored chats")
-    
-    except Exception as e:
-        logger.error(f"Error checking bot permissions: {e}")
-        
+
 async def is_chat_owner(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check if the user is the owner/creator of the chat"""
     try:
@@ -592,30 +491,30 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     first_name = user.first_name if user else "None"
     user_id = user.id if user else "None"
 
-    welcome_text = (f"ðŸ‘‹ðŸ» Merhaba @{username}\n"
-                    f"â€”{first_name}  None ({user_id})\n\n"
-                    "@CyberChanneISecurity_bot KanalÄ±nÄ±zÄ±\n"
-                    "GÃ¼venle Korur Ve Ä°ÅŸlerinizi KolaylaÅŸtÄ±rÄ±r.\n\n"
-                    "ðŸ‘‰ðŸ» Ã‡alÄ±ÅŸmama izin vermek iÃ§in kanalÄ±nÄ±zda\n"
-                    "tÃ¼m yetkileri veriniz.\n\n"
-                    "â“ Komutlar Neler?\n"
-                    "Komutlar HakkÄ±nda Bilgi Almak Ä°Ã§in Bot\n"
-                    "KullanÄ±m Butonuna BasÄ±nÄ±z LÃ¼tfen.\n\n"
-                    "ðŸŒŽ Desteklenen Diller Neler?\n"
-                    "Dil DeÄŸiÅŸtir Butonuna Basarak SeÃ§enekleri\n"
-                    "GÃ¶rebilirsin\n\n"
-                    "âœ¨ Legali Bot")
+    welcome_text = (f"👋🏻 Merhaba @{username}\n"
+                    f"—{first_name}  None ({user_id})\n\n"
+                    "@CyberChanneISecurity_bot Kanalınızı\n"
+                    "Güvenle Korur Ve İşlerinizi Kolaylaştırır.\n\n"
+                    "👉🏻 Çalışmama izin vermek için kanalınızda\n"
+                    "tüm yetkileri veriniz.\n\n"
+                    "❓ Komutlar Neler?\n"
+                    "Komutlar Hakkında Bilgi Almak İçin Bot\n"
+                    "Kullanım Butonuna Basınız Lütfen.\n\n"
+                    "🌎 Desteklenen Diller Neler?\n"
+                    "Dil Değiştir Butonuna Basarak Seçenekleri\n"
+                    "Görebilirsin\n\n"
+                    "✨ Legali Bot")
 
     keyboard = [[
         InlineKeyboardButton(
-            "âž• Kanala Ekle",
+            "➕ Kanala Ekle",
             url="https://t.me/CyberChannelSecurity_bot?startchannel=s&admin=manage_video_chats+pin_messages+invite_users"
         ),
-        InlineKeyboardButton("ðŸ“ Bot hakkÄ±nda bilgi", callback_data="bot_info")
+        InlineKeyboardButton("📝 Bot hakkında bilgi", callback_data="bot_info")
     ],
                 [
                     InlineKeyboardButton(
-                        "âš™ï¸ BOT Ä°NFO KANALI",
+                        "⚙️ BOT İNFO KANALI",
                         url="https://t.me/CyberChannelSecurity")
                 ]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -635,52 +534,52 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "bot_usage":
-        usage_text = ("ðŸ‘‘ Kanal YÃ¶neticileri KomutlarÄ±\n\n"
-                      "ðŸ‘® /admin @User Etikete Sahip Olan\n"
-                      "KullanÄ±cÄ± Kanalda Yetki AlÄ±r\n\n"
-                      "ðŸ‘® /admin ID Etikete Sahip Olan\n"
-                      "KullanÄ±cÄ± Kanalda Yetki AlÄ±r\n\n"
-                      "ðŸ‘‘ Kanal Koruma Sistemi\n\n"
-                      "ðŸ“¢ EÄŸer Kanal Admini Bir\n"
-                      "KullanÄ±cÄ±yÄ± Kanaldan Ã‡Ä±kartÄ±rsa\n"
+        usage_text = ("👑 Kanal Yöneticileri Komutları\n\n"
+                      "👮 /admin @User Etikete Sahip Olan\n"
+                      "Kullanıcı Kanalda Yetki Alır\n\n"
+                      "👮 /admin ID Etikete Sahip Olan\n"
+                      "Kullanıcı Kanalda Yetki Alır\n\n"
+                      "👑 Kanal Koruma Sistemi\n\n"
+                      "📢 Eğer Kanal Admini Bir\n"
+                      "Kullanıcıyı Kanaldan Çıkartırsa\n"
                       "Bot Otomatik Olarak Kanaldan\n"
-                      "Banlar Ve Kanala Kimi Ve Ã‡Ä±karan\n"
-                      "KiÅŸi HakkÄ±nda Bilgi Metini Ä°letir\n\n"
-                      "âž¡ï¸ Ã–rnek: AdlÄ± Admin TarafÄ±ndan AdlÄ±\n"
-                      "KullanÄ±cÄ± Kanaldan Ã‡Ä±karÄ±ldÄ± Admin\n"
-                      "Kanaldan BanlandÄ±\n\n"
-                      "ðŸ“ Ã–rnek Sadece TanÄ±tÄ±m Olarak\n"
-                      "GÃ¶sterilmiÅŸtir YazÄ± Stili DeÄŸiÅŸiktir\n\n"
-                      "/kanal yazarak kanal hakkÄ±nda bilgi edinin")
+                      "Banlar Ve Kanala Kimi Ve Çıkaran\n"
+                      "Kişi Hakkında Bilgi Metini İletir\n\n"
+                      "➡️ Örnek: Adlı Admin Tarafından Adlı\n"
+                      "Kullanıcı Kanaldan Çıkarıldı Admin\n"
+                      "Kanaldan Banlandı\n\n"
+                      "📝 Örnek Sadece Tanıtım Olarak\n"
+                      "Gösterilmiştir Yazı Stili Değişiktir\n\n"
+                      "/kanal yazarak kanal hakkında bilgi edinin")
         keyboard = [[
-            InlineKeyboardButton("â¬…ï¸ Geri DÃ¶n", callback_data="bot_info")
+            InlineKeyboardButton("⬅️ Geri Dön", callback_data="bot_info")
         ]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text=usage_text,
                                       reply_markup=reply_markup)
 
     elif query.data == "bot_info":
-        bot_info_text = ("ðŸ‘‹ Merhaba CanÄ±m, Ben Bir Koruma Botuyum\n\n"
-                         "ðŸ‘® KanalÄ±nÄ± DaÄŸÄ±tacak KullanÄ±cÄ±larÄ±\n"
+        bot_info_text = ("👋 Merhaba Canım, Ben Bir Koruma Botuyum\n\n"
+                         "👮 Kanalını Dağıtacak Kullanıcıları\n"
                          "Sen Yokken Engelleyebilirim\\!\n\n"
-                         "âž¡ï¸ Kurulum AÅŸamalarÄ±\n\n"
-                         "`âš™ï¸ Beni KanalÄ±na Ekle 1/3`\n"
-                         "`âš™ï¸ Benim Yetkimi Fulle 2/3`\n"
-                         "`âš™ï¸ Ä°ÅŸlem Tamam ArtÄ±k Aktif\\! 3/3`\n\n"
-                         "ðŸ“¢ Fakat KanalÄ±nda Bana Tam Yetki\n"
-                         "Vermez Ä°sen KanalÄ±nÄ± Koruyamam\\.\\.\\.\n\n"
-                         "âœ¨ Legali Bot\\.")
+                         "➡️ Kurulum Aşamaları\n\n"
+                         "`⚙️ Beni Kanalına Ekle 1/3`\n"
+                         "`⚙️ Benim Yetkimi Fulle 2/3`\n"
+                         "`⚙️ İşlem Tamam Artık Aktif\\! 3/3`\n\n"
+                         "📢 Fakat Kanalında Bana Tam Yetki\n"
+                         "Vermez İsen Kanalını Koruyamam\\.\\.\\.\n\n"
+                         "✨ Legali Bot\\.")
         keyboard = [[
-            InlineKeyboardButton("ðŸ‘¾Bot KullanÄ±m", callback_data="bot_usage")
+            InlineKeyboardButton("👾Bot Kullanım", callback_data="bot_usage")
         ],
                     [
-                        InlineKeyboardButton("ðŸŒDil deÄŸiÅŸtir",
+                        InlineKeyboardButton("🌍Dil değiştir",
                                              callback_data="change_language")
                     ],
                     [
-                        InlineKeyboardButton("1ï¸âƒ£BOT DEVELOPER",
+                        InlineKeyboardButton("1️⃣BOT DEVELOPER",
                                              url="https://t.me/canlaryakan"),
-                        InlineKeyboardButton("2ï¸âƒ£BOT DEVELOPER 2",
+                        InlineKeyboardButton("2️⃣BOT DEVELOPER 2",
                                              url="https://t.me/thetis0")
                     ]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -696,16 +595,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                           reply_markup=reply_markup)
 
     elif query.data == "change_language":
-        language_text = ("ðŸ‘‹ Merhaba KullanÄ±cÄ± Ä°sim Yada ID Ä°ÅŸte\n\n"
-                         "âš™ï¸ AÅŸÅŸaÄŸÄ±daki butonlara basarak\n"
-                         "Dili deÄŸiÅŸtirebilirsiniz\n\n"
-                         "ðŸŒ [TÃ¼rkÃ§e] %100\n"
-                         "ðŸŒ [English] %83\n\n"
-                         "âœ¨ Yeni Diller Eklenecektir Bilginize")
+        language_text = ("👋 Merhaba Kullanıcı İsim Yada ID İşte\n\n"
+                         "⚙️ Aşşağıdaki butonlara basarak\n"
+                         "Dili değiştirebilirsiniz\n\n"
+                         "🌍 [Türkçe] %100\n"
+                         "🌍 [English] %83\n\n"
+                         "✨ Yeni Diller Eklenecektir Bilginize")
         keyboard = [[
-            InlineKeyboardButton("ðŸŒ TÃ¼rkÃ§e", callback_data="lang_tr"),
-            InlineKeyboardButton("ðŸŒ English", callback_data="lang_en")
-        ], [InlineKeyboardButton("â¬…ï¸ Geri DÃ¶n", callback_data="bot_info")]]
+            InlineKeyboardButton("🌍 Türkçe", callback_data="lang_tr"),
+            InlineKeyboardButton("🌍 English", callback_data="lang_en")
+        ], [InlineKeyboardButton("⬅️ Geri Dön", callback_data="bot_info")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text=language_text,
                                       reply_markup=reply_markup)
@@ -716,25 +615,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         success = language_manager.set_language(language_code)
 
         if success:
-            confirmation_text = ("âœ… Dil TÃ¼rkÃ§e olarak deÄŸiÅŸtirildi"
+            confirmation_text = ("✅ Dil Türkçe olarak değiştirildi"
                                  if language_code == "tr" else
-                                 "âœ… Language has been changed to English")
+                                 "✅ Language has been changed to English")
 
             # Send confirmation as a separate message
             await context.bot.send_message(chat_id=query.message.chat_id,
                                            text=confirmation_text)
 
             # Show language selection menu again
-            language_text = ("ðŸ‘‹ Merhaba KullanÄ±cÄ± Ä°sim Yada ID Ä°ÅŸte\n\n"
-                             "âš™ï¸ AÅŸÅŸaÄŸÄ±daki butonlara basarak\n"
-                             "Dili deÄŸiÅŸtirebilirsiniz\n\n"
-                             "ðŸŒ [TÃ¼rkÃ§e] %100\n"
-                             "ðŸŒ [English] %83\n\n"
-                             "âœ¨ Yeni Diller Eklenecektir Bilginize")
+            language_text = ("👋 Merhaba Kullanıcı İsim Yada ID İşte\n\n"
+                             "⚙️ Aşşağıdaki butonlara basarak\n"
+                             "Dili değiştirebilirsiniz\n\n"
+                             "🌍 [Türkçe] %100\n"
+                             "🌍 [English] %83\n\n"
+                             "✨ Yeni Diller Eklenecektir Bilginize")
             keyboard = [[
-                InlineKeyboardButton("ðŸŒ TÃ¼rkÃ§e", callback_data="lang_tr"),
-                InlineKeyboardButton("ðŸŒ English", callback_data="lang_en")
-            ], [InlineKeyboardButton("â¬…ï¸ Geri DÃ¶n", callback_data="bot_info")]]
+                InlineKeyboardButton("🌍 Türkçe", callback_data="lang_tr"),
+                InlineKeyboardButton("🌍 English", callback_data="lang_en")
+            ], [InlineKeyboardButton("⬅️ Geri Dön", callback_data="bot_info")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             try:
@@ -744,25 +643,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"Failed to update language selection menu: {e}")
 
     elif query.data == "bot_usage":
-        usage_text = ("ðŸ‘‘ Kanal YÃ¶neticileri KomutlarÄ±\n\n"
-                      "ðŸ‘® /admin @User Etikete Sahip Olan\n"
-                      "KullanÄ±cÄ± Kanalda Yetki AlÄ±r\n\n"
-                      "ðŸ‘® /admin ID Etikete Sahip Olan\n"
-                      "KullanÄ±cÄ± Kanalda Yetki AlÄ±r\n\n"
-                      "ðŸ‘‘ Kanal Koruma Sistemi\n\n"
-                      "ðŸ“¢ EÄŸer Kanal Admini Bir\n"
-                      "KullanÄ±cÄ±yÄ± Kanaldan Ã‡Ä±kartÄ±rsa\n"
+        usage_text = ("👑 Kanal Yöneticileri Komutları\n\n"
+                      "👮 /admin @User Etikete Sahip Olan\n"
+                      "Kullanıcı Kanalda Yetki Alır\n\n"
+                      "👮 /admin ID Etikete Sahip Olan\n"
+                      "Kullanıcı Kanalda Yetki Alır\n\n"
+                      "👑 Kanal Koruma Sistemi\n\n"
+                      "📢 Eğer Kanal Admini Bir\n"
+                      "Kullanıcıyı Kanaldan Çıkartırsa\n"
                       "Bot Otomatik Olarak Kanaldan\n"
-                      "Banlar Ve Kanala Kimi Ve Ã‡Ä±karan\n"
-                      "KiÅŸi HakkÄ±nda Bilgi Metini Ä°letir\n\n"
-                      "âž¡ï¸ Ã–rnek: AdlÄ± Admin TarafÄ±ndan AdlÄ±\n"
-                      "KullanÄ±cÄ± Kanaldan Ã‡Ä±karÄ±ldÄ± Admin\n"
-                      "Kanaldan BanlandÄ±\n\n"
-                      "ðŸ“ Ã–rnek Sadece TanÄ±tÄ±m Olarak\n"
-                      "GÃ¶sterilmiÅŸtir YazÄ± Stili DeÄŸiÅŸiktir\n\n"
-                      "/kanal yazarak kanal hakkÄ±nda bilgi edinin")
+                      "Banlar Ve Kanala Kimi Ve Çıkaran\n"
+                      "Kişi Hakkında Bilgi Metini İletir\n\n"
+                      "➡️ Örnek: Adlı Admin Tarafından Adlı\n"
+                      "Kullanıcı Kanaldan Çıkarıldı Admin\n"
+                      "Kanaldan Banlandı\n\n"
+                      "📝 Örnek Sadece Tanıtım Olarak\n"
+                      "Gösterilmiştir Yazı Stili Değişiktir\n\n"
+                      "/kanal yazarak kanal hakkında bilgi edinin")
         keyboard = [[
-            InlineKeyboardButton("â¬…ï¸ Geri DÃ¶n", callback_data="bot_info")
+            InlineKeyboardButton("⬅️ Geri Dön", callback_data="bot_info")
         ]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text=usage_text,
@@ -924,7 +823,7 @@ async def get_channel_info(chat_id: int,
             # Show recent members with enhanced formatting
             if recent_members:
                 logger.info("\n" + "=" * 50)
-                logger.info("ðŸ“± SUBSCRIBERS LIST (Most Recent First):")
+                logger.info("📱 SUBSCRIBERS LIST (Most Recent First):")
                 logger.info("=" * 50)
 
                 # Filter members for this chat and sort by join time (newest first)
@@ -933,24 +832,24 @@ async def get_channel_info(chat_id: int,
 
                 for idx, member in enumerate(chat_members, 1):
                     logger.info("\n" + "-" * 40)
-                    logger.info(f"ðŸ“ Subscriber #{idx}:")
-                    logger.info(f"  ðŸ‘¤ Name: {member['first_name']}")
+                    logger.info(f"📍 Subscriber #{idx}:")
+                    logger.info(f"  👤 Name: {member['first_name']}")
                     logger.info(
-                        f"  ðŸ“ Username: @{member['username'] if member['username'] else 'None'}"
+                        f"  📝 Username: @{member['username'] if member['username'] else 'None'}"
                     )
                     logger.info(
-                        f"  â° Joined: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(member['joined_at']))}"
+                        f"  ⏰ Joined: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(member['joined_at']))}"
                     )
 
                 logger.info("\n" + "=" * 50)
-                logger.info(f"âœ… Total Tracked Subscribers: {len(chat_members)}")
+                logger.info(f"✅ Total Tracked Subscribers: {len(chat_members)}")
                 logger.info("=" * 50)
                 if len(chat_members) < member_count:
-                    logger.info("\nâ„¹ï¸ Note: Some earlier subscribers are not shown")
+                    logger.info("\nℹ️ Note: Some earlier subscribers are not shown")
                     logger.info("Only new subscribers who joined after bot activation are tracked")
             else:
-                logger.info("\nðŸ“¢ No subscribers tracked yet")
-                logger.info("â„¹ï¸ New subscribers will be tracked as they join")
+                logger.info("\n📢 No subscribers tracked yet")
+                logger.info("ℹ️ New subscribers will be tracked as they join")
 
         except Exception as e:
             logger.warning(f"Could not get member count: {e}")
@@ -1007,15 +906,15 @@ async def chat_member_update_handler(update: Update,
 
             # Log success and current stats
             logger.info("\n" + "=" * 50)
-            logger.info("âœ… New Member Successfully Tracked")
-            logger.info(f"ðŸ‘¤ Name: {new_member.first_name}")
+            logger.info("✅ New Member Successfully Tracked")
+            logger.info(f"👤 Name: {new_member.first_name}")
             logger.info(
-                f"ðŸ“ Username: `@{new_member.username if new_member.username else 'None'}"
+                f"📝 Username: `@{new_member.username if new_member.username else 'None'}"
             )
 
             # Show current tracking stats
             member_count = len([m for m in recent_members if m['chat_id'] == chat_id])
-            logger.info(f"ðŸ“Š Current tracked members for chat {chat_id}: {member_count}")
+            logger.info(f"📊 Current tracked members for chat {chat_id}: {member_count}")
             logger.info("=" * 50)
 
         # Skip handling if bot doesn't have necessary permissions
@@ -1115,9 +1014,9 @@ async def lookup_subscriber(username_or_id: str,
             if member:
                 return (
                     f"Subscriber Information:\n"
-                    f"ðŸ‘¤ Name: {member.user.first_name}\n"
-                    f"ðŸ“ Username: @{member.user.username if member.user.username else 'None'}\n"
-                    f"ðŸ”µ Status: {member.status}\n"
+                    f"👤 Name: {member.user.first_name}\n"
+                    f"📝 Username: @{member.user.username if member.user.username else 'None'}\n"
+                    f"🔵 Status: {member.status}\n"
                     f"Note: Join date is only available for members who joined after bot activation."
                 )
         except Exception as e:
@@ -1161,51 +1060,18 @@ def main():
 
         # Register chat member update handler
         app.add_handler(ChatMemberHandler(chat_member_update_handler, ChatMemberHandler.CHAT_MEMBER))
-        
-        # Add handler to monitor bot's own member status
-        app.add_handler(ChatMemberHandler(check_and_enforce_permissions, ChatMemberHandler.MY_CHAT_MEMBER))
 
         # Register callback query handler for inline buttons
         app.add_handler(CallbackQueryHandler(button_handler))
 
         # Register error handler
         app.add_error_handler(error_handler)
-        
-        # Set up periodic check for permissions
-        job_queue = app.job_queue
-        job_queue.run_repeating(
-            lambda context: asyncio.create_task(periodic_permission_check(context)),
-            interval=3600,  # Check every hour
-            first=300  # First check after 5 minutes
-        )
 
         logger.info("Bot is running... Press Ctrl+C to stop.")
         app.run_polling()
     except Exception as e:
         logger.critical(f"Failed to start bot: {e}")
 
-async def periodic_permission_check(context: ContextTypes.DEFAULT_TYPE):
-    """Periodically check permissions in all monitored chats"""
-    logger.info("Running periodic permission check")
-    if 'monitored_chats' not in context.bot_data:
-        return
-        
-    for chat_id in list(context.bot_data['monitored_chats'].keys()):
-        try:
-            # Create a dummy update for the check_and_enforce_permissions function
-            class DummyChat:
-                def __init__(self, chat_id):
-                    self.id = chat_id
-                    
-            class DummyUpdate:
-                def __init__(self, chat_id):
-                    self.effective_chat = DummyChat(chat_id)
-                    
-            dummy_update = DummyUpdate(chat_id)
-            await check_and_enforce_permissions(dummy_update, context)
-        except Exception as e:
-            logger.error(f"Error checking permissions for chat {chat_id}: {e}")
-            
+
 if __name__ == "__main__":
     main()
-    
