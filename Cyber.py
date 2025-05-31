@@ -34,7 +34,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Use environment variables for tokens and credentials
-BOT_TOKEN = os.getenv("BOT_TOKEN", "7396319401:AAER7cmrT6jQeWrFID1uctclOaINd7c5a38")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "7396319401:AAEPif6ZxkEaJBiTXeEPZpRgYl7XOI4HUto")
 API_ID = 21547048
 API_HASH = "aaca55f2ee5af88fbe9f589393a7b9b6"
 
@@ -1075,3 +1075,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
