@@ -1205,3 +1205,4 @@ async def periodic_permission_check(context: ContextTypes.DEFAULT_TYPE):
             await check_and_enforce_permissions(dummy_update, context)
         except Exception as e:
             logger.error(f"Error checking permissions for chat {chat_id}: {e}")
+app.run_polling()
