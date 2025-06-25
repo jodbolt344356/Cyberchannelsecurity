@@ -3,7 +3,7 @@ import logging
 import os
 from flask import Flask
 import threading
-from pyrogram import Client, filters, enums ,idle
+from pyrogram import Client, filters, enums, idle
 from pyrogram.enums import ChatMemberStatus
 from pyrogram.types import ChatPrivileges, Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import BotMethodInvalid, RPCError, AuthKeyUnregistered
@@ -72,25 +72,25 @@ async def start_command(client, message):
         keyboard = InlineKeyboardMarkup(
             [
                 [
-                    InlineKeyboardButton("🚀 Usage", callback_data="usage"),
-                    InlineKeyboardButton("👤 Owner", url="https://t.me/ogxcodex")
+                    InlineKeyboardButton("🚀 Kullanım", callback_data="usage"),
+                    InlineKeyboardButton("👤 Sahip", url="https://t.me/ogxcodex")
                 ]
             ]
         )
         
         await safe_api_call(
             message.reply,
-            "**🛡 Hello Dear, I'm a Protection Bot**\n"
-            "**I can help manage your Channel!**\n\n"
-            "**Features:**\n"
-            "1) **Manage admin permissions** 📊\n"
-            "2) **Monitor admin activities** 👥\n\n"
-            "**Installation Steps:**\n"
-            "1) **Add Me to Your Channel** ➕\n"
-            "2) **Make Me an Administrator with full rights** ⚡\n"
-            "3) **Use /admin @username to admin admins** 📋\n\n"
-            "**Note: Only channel admins can use the /admin command.**\n\n"
-            "**#Sᴀᴠɪᴏᴜʀ**",
+            "**🛡 Merhaba Sevgili Kullanıcı, Ben Bir Koruma Botuyum!**\n"
+            "**Kanalınızı yönetmenize yardımcı olabilirim!**\n\n"
+            "**Özellikler:**\n"
+            "1) **Yönetici izinlerini yönetme** 📊\n"
+            "2) **Yönetici faaliyetlerini izleme** 👥\n\n"
+            "**Kurulum Adımları:**\n"
+            "1) **Beni Kanalınıza Ekleyin** ➕\n"
+            "2) **Beni Tam Yetkili Yönetici Yapın** ⚡\n"
+            "3) **Yöneticileri eklemek için /admin @kullanıcıadı komutunu kullanın** 📋\n\n"
+            "**Not: Yalnızca kanal yöneticileri /admin komutunu kullanabilir.**\n\n"
+            "**#Koruyucu**",
             reply_markup=keyboard
         )
     except Exception as e:
@@ -103,21 +103,21 @@ async def handle_callback(client, callback_query):
 
         if data == "usage":
             keyboard = InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
+                [[InlineKeyboardButton("🔙 Geri", callback_data="back")]]
             )
             await safe_api_call(
                 callback_query.message.edit_text,
-                "**📚 Admin Monitor Bot Help**\n\n"
-                "**Available Commands:**\n"
-                "• `/start` - Start the bot\n"
-                "• `/admin @username` or `/admin username` - Promote a user to admin in your channel\n"
-                "• `/help` - Show this help message\n\n"
-                "**How it works:**\n"
-                "1. **Add the bot to your channel as an admin with all permissions**\n"
-                "2. **The bot will automatically monitor for admin actions**\n"
-                "3. **If any admin removes members, they will be automatically removed**\n"
-                "4. **Use the promote command directly in the channel to promote users**\n\n"
-                "**For the promote command to work, the bot must be an admin in the channel.**",
+                "**📚 Yönetici İzleme Botu Yardımı**\n\n"
+                "**Kullanılabilir Komutlar:**\n"
+                "• `/start` - Botu başlat\n"
+                "• `/admin @kullanıcıadı` veya `/admin kullanıcıadı` - Kanalınızda bir kullanıcıyı yönetici yapın\n"
+                "• `/help` - Bu yardım mesajını göster\n\n"
+                "**Nasıl çalışır:**\n"
+                "1. **Botu kanalınıza tüm izinlerle yönetici olarak ekleyin**\n"
+                "2. **Bot, yönetici eylemlerini otomatik olarak izler**\n"
+                "3. **Herhangi bir yönetici üye çıkarırsa, otomatik olarak yetkisi alınır**\n"
+                "4. **Kullanıcıları doğrudan kanalda terfi ettirmek için terfi komutunu kullanın**\n\n"
+                "**Terfi komutunun çalışması için botun kanalda yönetici olması gerekir.**",
                 reply_markup=keyboard
             )
 
@@ -125,46 +125,45 @@ async def handle_callback(client, callback_query):
             keyboard = InlineKeyboardMarkup(
                 [
                     [
-                        InlineKeyboardButton("📚 Usage", callback_data="usage"),
-                        InlineKeyboardButton("📢 Channel", url="https://t.me/teleprotectorbot_info")
+                        InlineKeyboardButton("📚 Kullanım", callback_data="usage"),
+                        InlineKeyboardButton("📢 Kanal", url="https://t.me/teleprotectorbot_info")
                     ]
                 ]
             )
             await safe_api_call(
                 callback_query.message.edit_text,
-                "**🛡 Hello Dear, I'm a Protection Bot**\n"
-                "**I can help manage your Channel!**\n\n"
-                "**Features:**\n"
-                "1) **Manage admin permissions** 📊\n"
-                "2) **Monitor admin activities** 👥\n\n"
-                "**Installation Steps:**\n"
-                "1) **Add Me to Your Channel** ➕\n"
-                "2) **Make Me an Administrator with full rights** ⚡\n"
-                "3) **Use /admin @username to promote admins** 📋\n\n"
-                "**Note: Only channel admins can use the /admin command.**\n\n"
-                "**#Sᴀᴠɪᴏᴜʀ**",
+                "**🛡 Merhaba Sevgili Kullanıcı, Ben Bir Koruma Botuyum!**\n"
+                "**Kanalınızı yönetmenize yardımcı olabilirim!**\n\n"
+                "**Özellikler:**\n"
+                "1) **Yönetici izinlerini yönetme** 📊\n"
+                "2) **Yönetici faaliyetlerini izleme** 👥\n\n"
+                "**Kurulum Adımları:**\n"
+                "1) **Beni Kanalınıza Ekleyin** ➕\n"
+                "2) **Beni Tam Yetkili Yönetici Yapın** ⚡\n"
+                "3) **Yöneticileri eklemek için /admin @kullanıcıadı komutunu kullanın** 📋\n\n"
+                "**Not: Yalnızca kanal yöneticileri /admin komutunu kullanabilir.**\n\n"
+                "**#Koruyucu**",
                 reply_markup=keyboard
             )
     except Exception as e:
         logger.error(f"Error in callback handler: {e}")
 
-        
 @app.on_message(filters.command("help") & filters.private)
 async def help_command(client, message):
     try:
         await safe_api_call(
             message.reply,
-            "📚 **Admin Monitor Bot Help**\n\n"
-            "**Available Commands:**\n"
-            "• `/start` - Start the bot\n"
-            "• `/admin @username` or `/admin username` - admin a user to admin in your channel\n"
-            "• `/help` - Show this help message\n\n"
-            "**How it works:**\n"
-            "1. Add the bot to your channel as an admin with all permissions\n"
-            "2. The bot will automatically monitor for admin actions\n"
-            "3. If any admin removes members, they will be automatically removed\n"
-            "4. Use the promote command directly in the channel to promote users\n\n"
-            "For the promote command to work, the bot must be an admin in the channel."
+            "📚 **Yönetici İzleme Botu Yardımı**\n\n"
+            "**Kullanılabilir Komutlar:**\n"
+            "• `/start` - Botu başlat\n"
+            "• `/admin @kullanıcıadı` veya `/admin kullanıcıadı` - Kanalınızda bir kullanıcıyı yönetici yapın\n"
+            "• `/help` - Bu yardım mesajını göster\n\n"
+            "**Nasıl çalışır:**\n"
+            "1. Botu kanalınıza tüm izinlerle yönetici olarak ekleyin\n"
+            "2. Bot, yönetici eylemlerini otomatik olarak izler\n"
+            "3. Herhangi bir yönetici üye çıkarırsa, otomatik olarak yetkisi alınır\n"
+            "4. Kullanıcıları doğrudan kanalda terfi ettirmek için terfi komutunu kullanın\n\n"
+            "Terfi komutunun çalışması için botun kanalda yönetici olması gerekir."
         )
     except Exception as e:
         logger.error(f"Error in help command: {e}")
@@ -204,7 +203,7 @@ async def promote_user(client, message: Message):
         # Check if command has the username
         if len(message.command) < 2:
             if message.chat.type == enums.ChatType.PRIVATE:
-                await safe_api_call(message.reply, "⚠️ Please provide a username to admin. Example: `/admin @username`")
+                await safe_api_call(message.reply, "⚠️ Lütfen bir kullanıcı adı belirtin. Örnek: `/admin @kullanıcıadı`")
             return
 
         # Extract the username
@@ -215,7 +214,7 @@ async def promote_user(client, message: Message):
         
         if not user_id:
             if message.chat.type == enums.ChatType.PRIVATE:
-                await safe_api_call(message.reply, f"❌ Could not find user with username @{username}. Please check the username and try again.")
+                await safe_api_call(message.reply, f"❌ @{username} kullanıcı adına sahip bir kullanıcı bulunamadı. Lütfen kullanıcı adını kontrol edin ve tekrar deneyin.")
             await delete_message_safely(client, message)
             return
         
@@ -247,7 +246,7 @@ async def promote_user(client, message: Message):
                 confirm_msg = await safe_api_call(
                     client.send_message,
                     message.chat.id, 
-                    f"✅ Successfully promoted {user_first_name} in this channel!"
+                    f"✅ {user_first_name} bu kanalda başarıyla yönetici yapıldı!"
                 )
                 
                 # Schedule message deletion
@@ -263,22 +262,22 @@ async def promote_user(client, message: Message):
                 confirm_msg = await safe_api_call(
                     client.send_message,
                     message.chat.id, 
-                    f"❌ {user_first_name} is already an admin or can't be promoted."
+                    f"❌ {user_first_name} zaten yönetici veya terfi ettirilemez."
                 )
                 asyncio.create_task(delete_message_after(client, confirm_msg, 5))
             except Exception as e:
                 logger.error(f"Error promoting user: {e}")
                 if message.chat.type == enums.ChatType.PRIVATE:
-                    await safe_api_call(message.reply, f"❌ An error occurred: {str(e)}")
+                    await safe_api_call(message.reply, f"❌ Bir hata oluştu: {str(e)}")
         else:
             # If in private chat, explain how to use the command
-            await safe_api_call(message.reply, "Please add me to a channel and use the `/admin` command directly in the channel.")
+            await safe_api_call(message.reply, "Lütfen beni bir kanala ekleyin ve `/admin` komutunu doğrudan kanalda kullanın.")
     
     except Exception as e:
         logger.error(f"Error in promote command: {e}")
         if message.chat.type == enums.ChatType.PRIVATE:
             try:
-                await safe_api_call(message.reply, f"❌ An error occurred: {str(e)}")
+                await safe_api_call(message.reply, f"❌ Bir hata oluştu: {str(e)}")
             except:
                 pass
 
@@ -342,7 +341,7 @@ async def handle_ban_detection(client, update):
             await safe_api_call(
                 client.send_message,
                 chat.id,
-                f"🚫 Admin {update.from_user.first_name} was DEMOTED for banning {banned_user.first_name}!"
+                f"🚫 Yönetici {update.from_user.first_name}, {banned_user.first_name} kullanıcısını yasakladığı için YETKİSİ ALINDI!"
             )
 
     except ChatAdminRequired:
@@ -372,12 +371,12 @@ def run_flask_server():
     @app_flask.route('/')
     def index():
         logger.info("Index route '/' was hit.")
-        return "Welcome to the bot server!", 200
+        return "Bot sunucusuna hoş geldiniz!", 200
 
     @app_flask.route('/health')
     def health_check():
         logger.info("Health check '/health' was hit.")
-        return "Bot is running", 200
+        return "Bot çalışıyor", 200
 
     # Use the port provided by the environment variable.
     port = int(os.environ.get("PORT", 8080))
@@ -427,4 +426,3 @@ if __name__ == "__main__":
         loop.run_until_complete(start_bot())
     except KeyboardInterrupt:
         logger.info("Bot stopped!")
-
